@@ -1,0 +1,106 @@
+#!/usr/bin/python
+import matplotlib.pyplot as plt
+import sys
+import math
+
+flist = ['1min30sec163steps', '1min30sec164hold', '1min30sec167steps', '1min30sec177hold']
+
+# window size for mean square calculation
+W_SIZE = 15
+# gravitational constant
+CONST_G = 9.81
+
+# threshold
+LIMIT_T1 = 2.0
+LIMIT_T2 = 1.0
+
+# read filename from command
+if len(sys.argv) < 2:
+	print('usage: ./count_step csvfile')
+	sys.exit(2)
+
+# initialisation
+magnitude = []
+# local mean
+lm =[]
+# variance
+v = []
+# State (B1, B2) at each point
+b = []
+# threshold T1
+t1 = []
+# threshold T2
+t2 = []
+#fname = sys.argv[1]
+
+# read csv file
+try:
+	with open(fname, 'r') as fin:
+		lines = fin.readlines()
+except:
+	print('IO Error')
+	sys.exit(2)
+
+# compute magnitude
+for line in lines:
+	r = [float(x)*CONST_G for x in line.split(',')]
+	# compute magnitude of acceleration
+	a = math.sqrt(math.pow(r[0],2) + math.pow(r[1],2) + math.pow(r[2], 2))
+	magnitude.append(a)
+
+# compute local mean in the range of [i-W_SIZE, i+W_SIZE]
+for i in range(len(magnitude)):
+	# set local mean as original magnitude for boundary values
+	if i < W_SIZE or i >= len(magnitude) - W_SIZE:
+		lm.append(magnitude[i])
+	else:
+		# get the slice of current window
+		w = magnitude[i - W_SIZE : i + W_SIZE + 1]
+		lmean = sum(w) / (2 * W_SIZE + 1)
+		lm.append(lmean)
+
+# compute local variance
+for i in range(len(magnitude)):
+	# ignore the first and last W_SIZE values
+	if i < W_SIZE or i >= len(magnitude) - W_SIZE:
+		v.append(0)
+		b.append((0, 0))
+		t1.append(0)
+		t2.append(0)
+	else:
+		# compute variacne
+		total = 0
+		for j in range(i - W_SIZE, i + W_SIZE + 1):
+			total += math.pow(magnitude[j] - lm[j-W_SIZE], 2)
+		var = total / (2 * W_SIZE + 1)
+		v.append(math.sqrt(var))
+		# apply threshold
+		b1 = 1 if math.sqrt(var) > LIMIT_T1 else 0
+		b2 = 1 if math.sqrt(var) < LIMIT_T2 else 0
+		b.append((b1, b2))
+		t1.append(b1)
+		t2.append(b2)
+
+# DEBUG plot
+plt.figure()
+plt.plot(magnitude)
+plt.plot(lm)
+plt.plot(v)
+plt.plot(t1)
+plt.plot(t2)
+plt.show()
+
+# count steps TO BE TESTED
+
+# steps = 0
+# for i in range(1, len(b) - 1):
+# 	# condition 1: a transition from high to low acceleration
+# 	if b[i][0] > b[i-1][0]:
+# 		# condition 2: there must be at least one low acceration detected in
+# 		# a window of size w ahead of the current sample
+# 		end = (len(b) - 1) if ((i + W_SIZE) >= len(b)) else i+W_SIZE
+# 		for j in range(i+1, end+1):
+# 			if b[j][1] == 1:
+# 				steps += 1
+
+# print(steps)
